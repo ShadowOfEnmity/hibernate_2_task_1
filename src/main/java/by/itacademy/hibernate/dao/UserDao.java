@@ -89,7 +89,7 @@ public class UserDao {
      */
     public List<Object[]> isItPossible(Session session) {
         return session.createQuery("select u, avg(p.amount) from User u inner join u.payments p " +
-                                "group by u having avg(p.amount)>=(select avg(p2.amount) from Payment p2) order by u.username asc ",
+                                "group by u having avg(p.amount)>(select avg(p2.amount) from Payment p2) order by u.username asc ",
                                 Object[].class)
                 .list();
     }
