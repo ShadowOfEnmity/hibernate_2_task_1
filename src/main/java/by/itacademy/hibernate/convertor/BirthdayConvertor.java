@@ -13,7 +13,7 @@ public class BirthdayConvertor implements AttributeConverter<Birthday, Date> {
     @Override
     public Date convertToDatabaseColumn(Birthday birthday) {
         return Optional.ofNullable(birthday)
-                .map(Birthday::birthDate)
+                .map(Birthday::getBirthDate)
                 .map(Date::valueOf)
                 .orElse(null);
     }

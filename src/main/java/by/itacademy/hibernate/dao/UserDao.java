@@ -1,16 +1,29 @@
 package by.itacademy.hibernate.dao;
 
 
-import by.itacademy.hibernate.entity.Payment;
-import by.itacademy.hibernate.entity.User;
+import by.itacademy.hibernate.dto.BirthDayRangeFilter;
+import by.itacademy.hibernate.entity.*;
+import com.querydsl.core.Tuple;
+import com.querydsl.core.types.OrderSpecifier;
+import com.querydsl.core.types.Predicate;
+import com.querydsl.core.types.dsl.*;
+import com.querydsl.jpa.JPAExpressions;
+import com.querydsl.jpa.impl.JPAQuery;
+import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import org.hibernate.Session;
 
-import java.util.ArrayList;
+import java.sql.Date;
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
+
+import static by.itacademy.hibernate.entity.QCompany.company;
+import static by.itacademy.hibernate.entity.QPayment.payment;
+import static by.itacademy.hibernate.entity.QUser.user;
+import static com.querydsl.core.types.dsl.Expressions.asDate;
+import static com.querydsl.core.types.dsl.Expressions.dateTemplate;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class UserDao {
@@ -90,11 +103,87 @@ public class UserDao {
     public List<Object[]> isItPossible(Session session) {
         return session.createQuery("select u, avg(p.amount) from User u inner join u.payments p " +
                                 "group by u having avg(p.amount)>(select avg(p2.amount) from Payment p2) order by u.username asc ",
-                                Object[].class)
+                        Object[].class)
                 .list();
+    }
+//////////////////////////////////QueryDSL/////////////////////////////
+
+    /**
+     * Найти всех сотрудников определенной компании с средней зарплатой не ниже чем заданная величина
+     */
+    public List<Tuple> findUsersByCompanyNameWithAvgPaymentsGreaterThanOrEqualToSetValue(Session session, String companyName, int amount) {
+        return new JPAQueryFactory(session)
+                .select(user, payment.amount.avg())
+                .from(company)
+                .join(company.users, user)
+                .join(user.payments, payment)
+                .where(company.name.eq(companyName))
+                .orderBy(user.username.asc())
+                .groupBy(user)
+                .having(payment.amount.avg().goe(amount))
+                .fetch();
+    }
+
+    /**
+     * Найти сотрудников с днями рождения входящими в указанный интервал дат
+     */
+    public List<User> findUsersByBirthdayDateRange(Session session, BirthDayRangeFilter dateFilter) {
+
+        Predicate predicate = QPredictate.builder()
+                .add(dateFilter.getBegin(), user.personalInfo.birthDate::goe)
+                .add(dateFilter.getEnd(), user.personalInfo.birthDate::loe)
+                .buildAnd();
+
+        return new JPAQueryFactory(session).
+                select(user)
+                .from(user)
+                .where(predicate)
+                .fetch();
+    }
+
+    /**
+     * Получить максимальную зарплату по каждой организации и отсортировать по убыванию по названию организации
+     */
+    public List<Tuple> findMaxPaymentByEachCompanyOrderedByCompanyName(Session session) {
+        return new JPAQueryFactory(session)
+                .select(company.name, payment.amount.avg())
+                .from(company)
+                .join(company.users, user)
+                .join(user.payments, payment)
+                .groupBy(company)
+                .orderBy(company.name.desc())
+                .fetch();
+    }
+
+    /**
+     * Получить количество сотрудников по каждой организации.Упорядочить по убыванию количества сотрудников и по возрастанию наименования организации
+     */
+    public List<Tuple> findUserCountByEachCompany(Session session) {
+        return new JPAQueryFactory(session)
+                .select(company.name, user.count())
+                .from(company)
+                .join(company.users, user)
+                .groupBy(company)
+                .orderBy(user.count().desc(), company.name.asc())
+                .fetch();
+    }
+
+    /**
+     * Найти отношение количества сотрудников каждой организации к общему количеству сотрудников
+     */
+    public List<Tuple> findCompaniesAndEmployeeCountRatio(Session session) {
+
+        return new JPAQueryFactory(session)
+                .select(company.name, user.count().castToNum(Double.class).divide(new JPAQuery<Long>(session).select(user.count()).from(user)))
+                .from(company)
+                .join(company.users, user)
+                .groupBy(company)
+                .orderBy(company.name.asc())
+                .fetch();
     }
 
     public static UserDao getInstance() {
         return INSTANCE;
     }
+
 }

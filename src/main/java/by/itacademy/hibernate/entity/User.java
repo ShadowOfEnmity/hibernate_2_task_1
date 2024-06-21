@@ -1,10 +1,11 @@
 package by.itacademy.hibernate.entity;
 
 import javax.persistence.*;
+
+import com.querydsl.core.annotations.QueryType;
 import lombok.*;
 import java.util.ArrayList;
 import java.util.List;
-
 
 @Data
 @NoArgsConstructor
@@ -33,12 +34,12 @@ public class User implements Comparable<User>, BaseEntity<Long> {
     @JoinColumn(name = "company_id")
     private Company company;
 
-    @OneToOne(
-            mappedBy = "user",
-            cascade = CascadeType.ALL,
-            fetch = FetchType.LAZY
-    )
-    private Profile profile;
+//    @OneToOne(
+//            mappedBy = "user",
+//            cascade = CascadeType.ALL,
+//            fetch = FetchType.LAZY
+//    )
+//    private Profile profile;
 
     @Builder.Default
     @OneToMany(mappedBy = "user")

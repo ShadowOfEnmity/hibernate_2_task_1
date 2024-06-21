@@ -1,19 +1,22 @@
 package by.itacademy.hibernate.dao;
 
 
+import by.itacademy.hibernate.dto.BirthDayRangeFilter;
+import by.itacademy.hibernate.entity.Birthday;
 import by.itacademy.hibernate.utils.TestDataImporter;
 import by.itacademy.hibernate.entity.Payment;
 import by.itacademy.hibernate.entity.User;
 import by.itacademy.hibernate.util.HibernateUtil;
+import com.querydsl.core.Tuple;
 import lombok.Cleanup;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.*;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Objects;
 
 import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -149,4 +152,102 @@ class UserDaoTest {
 
         session.getTransaction().commit();
     }
+
+
+    @Nested
+    @DisplayName("Testing queries written using query dsl")
+    class QueryDsl {
+
+        @Test
+        void findUsersByCompanyNameWithPaymentsGreaterThanOrEqualToSetValue() {
+            @Cleanup Session session = sessionFactory.openSession();
+            session.beginTransaction();
+
+            List<Tuple> results = userDao.findUsersByCompanyNameWithAvgPaymentsGreaterThanOrEqualToSetValue(session, "Google", 300);
+            assertThat(results).hasSize(2);
+
+            List<String> names = results.stream().map(tuple -> Objects.requireNonNull(tuple.get(0, User.class)).fullName()).toList();
+            assertThat(names).containsExactly("Diane Greene", "Sergey Brin");
+
+            List<Double> averagePayments = results.stream().map(tuple -> Objects.requireNonNull(tuple.get(1, Double.class))).toList();
+            assertThat(averagePayments).containsExactly(300.0D, 500.0D);
+
+            session.getTransaction().commit();
+        }
+
+        @Test
+        void findUsersByBirthdayDateRange() {
+            @Cleanup Session session = sessionFactory.openSession();
+            session.beginTransaction();
+
+            BirthDayRangeFilter dateFilter = BirthDayRangeFilter.builder()
+                    .begin(new Birthday(LocalDate.of(1955, 1, 1)))
+                    .end(new Birthday(LocalDate.of(1955, 2, 24)))
+                    .build();
+
+            List<User> results = userDao.findUsersByBirthdayDateRange(session, dateFilter);
+
+            assertThat(results).hasSize(2);
+
+            List<String> names = results.stream().map(User::fullName).collect(toList());
+            assertThat(names).contains("Steve Jobs", "Diane Greene");
+
+            session.getTransaction().commit();
+        }
+
+        @Test
+        void findMaxPaymentByEachCompanyOrderedByCompanyName() {
+            @Cleanup Session session = sessionFactory.openSession();
+            session.beginTransaction();
+
+            List<Tuple> paymentsByOrganizations = userDao.findMaxPaymentByEachCompanyOrderedByCompanyName(session);
+
+            assertThat(paymentsByOrganizations).hasSize(3);
+
+            List<String> names = paymentsByOrganizations.stream().map(tuple -> tuple.get(0, String.class)).collect(toList());
+            assertThat(names).containsExactly("Microsoft", "Google", "Apple");
+
+
+            List<Double> averagePayments = paymentsByOrganizations.stream().map(tuple -> Objects.requireNonNull(tuple.get(1, Double.class))).toList();
+            assertThat(averagePayments).containsExactly(300.0D, 400.0D, 410.0D);
+
+            session.getTransaction().commit();
+        }
+
+        @Test
+        void findUserCountByEachCompany() {
+            @Cleanup Session session = sessionFactory.openSession();
+            session.beginTransaction();
+
+            List<Tuple> results = userDao.findUserCountByEachCompany(session);
+            assertThat(results).hasSize(3);
+
+            List<String> names = results.stream().map(tuple -> tuple.get(0, String.class)).collect(toList());
+            assertThat(names).containsExactly("Apple", "Google", "Microsoft");
+
+            List<Long> counts = results.stream().map(tuple -> tuple.get(1, Long.class)).collect(toList());
+
+            assertThat(counts).containsExactly(2L, 2L, 1L);
+            session.getTransaction().commit();
+        }
+
+        @Test
+        void findCompaniesAndEmployeeCountRatio() {
+            @Cleanup Session session = sessionFactory.openSession();
+            session.beginTransaction();
+            List<Tuple> results = userDao.findCompaniesAndEmployeeCountRatio(session);
+
+            assertThat(results).hasSize(3);
+
+            List<String> names = results.stream().map(tuple -> tuple.get(0, String.class)).collect(toList());
+            assertThat(names).containsExactly("Apple", "Google", "Microsoft");
+
+            List<Double> ratioList = results.stream().map(tuple -> tuple.get(1, Double.class)).toList();
+
+            assertThat(ratioList).containsExactly(0.4D, 0.4D, 0.2D);
+
+            session.getTransaction().commit();
+        }
+    }
+
 }
